@@ -1,20 +1,58 @@
 const express = require('express');
+const morgan = require('morgan');
+const cors = require('cors');
 const app=express();
 const fs = require('fs');
 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const path= './data.json';
 const date=new Date();
+const corsOptions = {
+    origin: 'http://localhost:5173',
+   
+};
+morgan.token('response-body', (req, res) => {
+    return JSON.stringify(res.json) || ''; // Return the captured response body as a string
+});
 app.use(express.json());
+app.use(cors(corsOptions));
+app.use((req, res, next) => {
+    // Store original res.json method
+    const originalJson = res.json;
+
+    // Create a variable to hold the response body
+    res.responseBody = null;
+    // Override res.json method
+    res.json = function (body) {
+        if(body.security=='classfied'){
+            res.responseBody={data:'classfied'};
+        }
+        else{
+            console.log(body.security);
+            res.responseBody = body.data; // Store the body
+        }
+        return originalJson.call(this, body.data); // Call the original res.json method
+    };
+
+    next();
+});
+
+// Define a custom token for the response body
+morgan.token('response-body', (req, res) => {
+    return JSON.stringify(res.responseBody) || ''; // Return the captured response body as a string
+});
+const customFormat = ':method :url :status :response-time ms :response-body';
 function update_data(data){
     fs.writeFile(path, JSON.stringify(data), 'utf8', (err) => {
         if (err) {
             console.error('Error writing to file:', err);
             return;
         }
-        console.log('Data written successfully!');
+        console.log('JSON data written successfully!');
     });
 }
+// Use Morgan with the custom format
+app.use(morgan(customFormat));
 app.get('/info',(request,response)=>{
     const jsondata = fs.readFileSync(path, 'utf8'); 
     const persons = JSON.parse(jsondata); 
@@ -30,7 +68,7 @@ app.get('/api/persons/:id', (request, response) => {
     const person=persons.find(person=>person.id==id);
     console.log("what");
     if(person){
-        response.json(person);
+        response.json({data:person,security:'vaild'});
     }
     else{
         console.log("what");
@@ -43,9 +81,8 @@ app.delete('/api/persons/:id', (request, response) => {
     const id=request.params.id;
     const person=persons.find(person=>person.id==id);
     if(person){
-    console.log(persons.filter((person)=>person.id!=id));
     update_data(persons.filter((person)=>person.id!=id));
-    response.json(persons.filter((person)=>person.id!=id));
+    response.json({data:person,security:'valid'});
     }
     else{
         response.status(404).send('no person with this id');
@@ -55,7 +92,7 @@ app.delete('/api/persons/:id', (request, response) => {
 app.get('/api/persons', (request, response) => {
     const jsondata = fs.readFileSync(path, 'utf8'); 
     const persons = JSON.parse(jsondata); 
-    response.json(persons);
+    response.json({data:persons,security:'classfied'});
 });
 app.post('/api/persons', (request, response) => {
     const jsondata = fs.readFileSync(path, 'utf8'); 
@@ -75,7 +112,7 @@ app.post('/api/persons', (request, response) => {
             const new_person={...request.body,id:id};
             toogle=true;
             update_data(persons.concat(new_person));
-            response.json(new_person);
+            response.json({data:new_person,security:'valid'});
             break;
         }
     }
@@ -87,7 +124,7 @@ app.post('/api/persons', (request, response) => {
     
     
 });
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
