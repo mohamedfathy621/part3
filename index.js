@@ -16,6 +16,7 @@ morgan.token('response-body', (req, res) => {
 });
 app.use(express.json());
 app.use(cors(corsOptions));
+app.use(express.static('dist'))
 app.use((req, res, next) => {
     // Store original res.json method
     const originalJson = res.json;
